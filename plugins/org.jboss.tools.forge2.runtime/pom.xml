@@ -117,6 +117,12 @@
                         </artifactItem>
                         <artifactItem>
                            <groupId>org.jboss.forge.addon</groupId>
+                           <artifactId>maven-api</artifactId>
+                           <version>${version.forge.addons}</version>
+                           <destFileName>maven-api-${version.forge.addons}.jar</destFileName>
+                        </artifactItem>
+                        <artifactItem>
+                           <groupId>org.jboss.forge.addon</groupId>
                            <artifactId>ui-api</artifactId>
                            <version>${version.forge.addons}</version>
                            <destFileName>ui-api-${version.forge.addons}.jar</destFileName>

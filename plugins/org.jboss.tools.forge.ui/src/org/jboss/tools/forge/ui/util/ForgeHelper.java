@@ -13,6 +13,9 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.m2e.core.internal.MavenPluginActivator;
+import org.eclipse.m2e.core.internal.archetype.ArchetypeCatalogFactory;
+import org.eclipse.m2e.core.internal.archetype.ArchetypeManager;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IViewPart;
 import org.eclipse.ui.IWorkbench;
@@ -20,6 +23,7 @@ import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.jboss.forge.addon.database.tools.connections.ConnectionProfileManagerProvider;
+import org.jboss.forge.addon.maven.archetype.ArchetypeCatalogFactoryRegistry;
 import org.jboss.forge.addon.projects.ProjectFactory;
 import org.jboss.forge.furnace.services.Imported;
 import org.jboss.tools.forge.core.furnace.FurnaceRuntime;
@@ -31,23 +35,25 @@ import org.jboss.tools.forge.ui.internal.ext.database.ConnectionProfileManagerIm
 import org.jboss.tools.forge.ui.internal.ext.importer.ImportEclipseProjectListener;
 import org.jboss.tools.forge.ui.internal.part.ForgeConsoleView;
 
+@SuppressWarnings("restriction")
 public class ForgeHelper {
-	
+
 	public static void start(ForgeRuntime runtime) {
 		createStartRuntimeJob(runtime).schedule();
 	}
-	
+
 	public static void stop(ForgeRuntime runtime) {
 		createStopRuntimeJob(runtime).schedule();
 	}
-	
+
 	public static Job createStartRuntimeJob(final ForgeRuntime runtime) {
 		final String version = runtime.getVersion();
 		WorkspaceJob job = new WorkspaceJob("Starting JBoss Forge " + version) {
 			@Override
 			public IStatus runInWorkspace(IProgressMonitor monitor)
 					throws CoreException {
-				String taskName = "Please wait while JBoss Forge " + version + " is started.";
+				String taskName = "Please wait while JBoss Forge " + version
+						+ " is started.";
 				monitor.beginTask(taskName, IProgressMonitor.UNKNOWN);
 				runtime.start(monitor);
 				if (runtime instanceof FurnaceRuntime) {
@@ -57,8 +63,7 @@ public class ForgeHelper {
 					Display.getDefault().asyncExec(new Runnable() {
 						@Override
 						public void run() {
-							MessageDialog.openError(
-									null,
+							MessageDialog.openError(null,
 									"JBoss Forge Startup Error",
 									runtime.getErrorMessage());
 						}
@@ -70,7 +75,7 @@ public class ForgeHelper {
 		job.setUser(true);
 		return job;
 	}
-	
+
 	public static Job createStopRuntimeJob(final ForgeRuntime runtime) {
 		Job job = new Job("Stopping JBoss Forge " + runtime.getVersion()) {
 			@Override
@@ -82,7 +87,7 @@ public class ForgeHelper {
 		job.setUser(true);
 		return job;
 	}
-	
+
 	private static void initializeFurnaceRuntime() {
 		FurnaceService forgeService = FurnaceService.INSTANCE;
 		try {
@@ -92,8 +97,7 @@ public class ForgeHelper {
 			return;
 		}
 		ProjectFactory projectFactory;
-		while ((projectFactory = forgeService
-				.lookup(ProjectFactory.class)) == null) {
+		while ((projectFactory = forgeService.lookup(ProjectFactory.class)) == null) {
 			try {
 				Thread.sleep(1000);
 			} catch (InterruptedException e) {
@@ -108,48 +112,73 @@ public class ForgeHelper {
 			Imported<ConnectionProfileManagerProvider> imported = forgeService
 					.lookupImported(ConnectionProfileManagerProvider.class);
 			if (imported != null) {
-				ConnectionProfileManagerProvider provider = imported
-						.get();
+				ConnectionProfileManagerProvider provider = imported.get();
 				provider.setConnectionProfileManager(new ConnectionProfileManagerImpl());
 			}
+			importMavenArchetypeCatalogs(forgeService);
 		} catch (Throwable t) {
 			ForgeUIPlugin.log(t);
 		}
 	}
-	
+
+	static void importMavenArchetypeCatalogs(FurnaceService forgeService)
+			throws Exception {
+		ArchetypeCatalogFactoryRegistry archetypeRegistry = forgeService
+				.lookup(ArchetypeCatalogFactoryRegistry.class);
+		ArchetypeManager archetypeManager = MavenPluginActivator.getDefault()
+				.getArchetypeManager();
+		for (ArchetypeCatalogFactory catalog : archetypeManager
+				.getArchetypeCatalogs()) {
+			archetypeRegistry
+					.addArchetypeCatalogFactory(new ArchetypeCatalogFactoryWrapper(
+							catalog));
+		}
+	}
+
 	private static IWorkbenchPage getActiveWorkbenchPage() {
 		IWorkbench workbench = PlatformUI.getWorkbench();
-		if (workbench == null) return null;
-		IWorkbenchWindow activeWorkbenchWindow = workbench.getActiveWorkbenchWindow();
-		if (activeWorkbenchWindow == null) return null;
+		if (workbench == null)
+			return null;
+		IWorkbenchWindow activeWorkbenchWindow = workbench
+				.getActiveWorkbenchWindow();
+		if (activeWorkbenchWindow == null)
+			return null;
 		return activeWorkbenchWindow.getActivePage();
 	}
-	
+
 	public static void showForgeConsole(ForgeRuntime forgeRuntime) {
 		try {
 			IWorkbenchPage activeWorkbenchPage = getActiveWorkbenchPage();
-			IViewPart forgeConsoleView = activeWorkbenchPage.showView(ForgeConsoleView.ID);
-			if (forgeConsoleView == null) return;
-			((ForgeConsoleView)forgeConsoleView).showForgeConsole(ForgeConsoleManager.INSTANCE.getConsole(forgeRuntime));
+			IViewPart forgeConsoleView = activeWorkbenchPage
+					.showView(ForgeConsoleView.ID);
+			if (forgeConsoleView == null)
+				return;
+			((ForgeConsoleView) forgeConsoleView)
+					.showForgeConsole(ForgeConsoleManager.INSTANCE
+							.getConsole(forgeRuntime));
 		} catch (Exception e) {
 			ForgeUIPlugin.log(e);
 		}
 	}
-	
+
 	public static void showRuntime(ForgeRuntime forgeRuntime) {
 		try {
 			ForgeConsoleView forgeConsoleView = findForgeConsoleView();
-			if (forgeConsoleView == null) return;
-			forgeConsoleView.showForgeConsole(ForgeConsoleManager.INSTANCE.getConsole(forgeRuntime));
+			if (forgeConsoleView == null)
+				return;
+			forgeConsoleView.showForgeConsole(ForgeConsoleManager.INSTANCE
+					.getConsole(forgeRuntime));
 		} catch (Exception e) {
 			ForgeUIPlugin.log(e);
 		}
 	}
-	
+
 	public static ForgeConsoleView findForgeConsoleView() {
 		IWorkbenchPage activeWorkbenchPage = getActiveWorkbenchPage();
-		IViewPart forgeConsoleView = activeWorkbenchPage.findView(ForgeConsoleView.ID);
-		return forgeConsoleView == null ? null : (ForgeConsoleView)forgeConsoleView;
+		IViewPart forgeConsoleView = activeWorkbenchPage
+				.findView(ForgeConsoleView.ID);
+		return forgeConsoleView == null ? null
+				: (ForgeConsoleView) forgeConsoleView;
 	}
 
 }
